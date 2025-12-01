@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>外汇合约帝国</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
+body,html{height:100%;background:#0b0e17;color:#fff;overflow:hidden}
+.header{background:#1a1f2e;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:19px;box-shadow:0 4px 20px rgba(0,0,0,0.7)}
+.logo{color:#00ff9d;font-weight:bold;letter-spacing:1px}
+.account .green{color:#00ff9d;font-weight:bold}
+.main{height:calc(100% - 56px);display:flex}
+.left{width:300px;background:#161b22;overflow-y:auto;border-right:1px solid #30363d}
+.symbol{padding:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:.2s;border-bottom:1px solid #21262d}
+.symbol:hover{background:#1f2532}
+.symbol.active{background:#00ff9d;color:#000;font-weight:bold}
+.chart-container{flex:1;background:#0b0e17}
+.right{width:420px;background:#161b22;padding:20px;display:flex;flex-direction:column}
+.current-price{font-size:44px;text-align:center;margin:20px 0;color:#00ff9d;font-weight:bold}
+.tabs button{flex:1;padding:16px;font-size:18px;border:none;cursor:pointer;font-weight:bold}
+.buy-btn{background:#00ff9d;color:#000}
+.sell-btn{background:#ff4444;color:#fff}
+.buy-btn.active,.sell-btn.active{transform:scale(1.05)}
+.lots-control{display:flex;gap:20px;align-items:center;justify-content:center;margin:25px 0}
+.lots-control button{width:56px;height:56px;font-size:30px;background:#30363d;border-radius:12px}
+.lots-control input{width:150px;padding:14px;font-size:24px;text-align:center;background:#21262d;border-radius:12px}
+.order-btn{width:100%;padding:22px;font-size:26px;border:none;border-radius:12px;cursor:pointer;font-weight:bold;margin:25px 0}
+.buy-order{background:#00ff9d;color:#000;box-shadow:0 10px 30px rgba(0,255,157,0.5)}
+.sell-order{background:#ff4444;color:#fff;box-shadow:0 10px 30px rgba(255,68,68,0.5)}
+#positions{flex:1;overflow-y:auto;margin-top:20px}
+.pos-item{background:#1e2433;padding:18px;margin:10px 0;border-radius:12px;border-left:5px solid #00ff9d;position:relative}
+.pos-item.sell{border-left-color:#ff4444}
+.close-pos{background:#ff1744;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;position:absolute;right:15px;top:15px}
+#chart{width:100%;height:100%}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">外汇合约帝国</div>
+  <div class="account">模拟资金: <span class="green">$<span id="balance">100,000.00</span></span> | 总盈亏: <span id="total-pnl">$0.00</span></div>
+</div>
+
+<div class="main">
+  <div class="left" id="symbol-list"></div>
+  <div class="chart-container"><div id="chart"></div></div>
+  <div class="right">
+    <h2 style="text-align:center" id="symbol-name">黄金 XAUUSD</h2>
+    <div class="current-price">$<span id="price">--</span></div>
+    <div class="tabs">
+      <button class="buy-btn active" id="buy-tab">买涨</button>
+      <button class="sell-btn" id="sell-tab">买跌</button>
+    </div>
+    <div class="lots-control">
+      <button onclick="changeLots(-0.01)">−</button>
+      <input type="number" id="lots" value="0.10" step="0.01" min="0.01">
+      <button onclick="changeLots(0.01)">+</button>
+    </div>
+    <button class="order-btn buy-order" id="order-btn">买入 0.10手 XAUUSD</button>
+    <div id="positions"><h3 style="color:#aaa;margin:20px 0 10px">持仓列表</h3></div>
+  </div>
+</div>
+
+<script>
+const symbols = [
+  {sym:"XAUUSD",name:"黄金",contract:100,pip:0.1},
+  {sym:"BTCUSD",name:"比特币",contract:1,pip:1},
+  {sym:"ETHUSD",name:"以太坊",contract:10,pip:0.1},
+  {sym:"EURUSD",name:"欧元美元",contract:100000,pip:0.0001},
+];
+
+let current = symbols[0];
+let myChart = null;
+let positions = [];
+let direction = 'buy';
+let kData = [];
+
+// 左侧列表
+document.getElementById('symbol-list').innerHTML = symbols.map(s => `
+  <div class="symbol ${s === current ? 'active' : ''}" onclick="switchSymbol('${s.sym}')">
+    <div>${s.name}</div>
+    <div style="text-align:right;font-size:18px;font-weight:bold">--</div>
+  </div>
+`).join('');
+
+// 切换品种
+function switchSymbol(sym) {
+  current = symbols.find(s => s.sym === sym);
+  document.querySelectorAll('.symbol').forEach(el => el.classList.remove('active'));
+  event.target.closest('.symbol').classList.add('active');
+  document.getElementById('symbol-name').textContent = current.sym;
+  initChart();
+}
+
+// 专业K线图
+function initChart() {
+  const chartDom = document.getElementById('chart');
+  if (myChart) myChart.dispose();
+  myChart = echarts.init(chartDom);
+
+  kData = [];
+  let time = Date.now() - 500 * 60 * 1000;
+  let p = current.price = 2425;
+  for (let i = 0; i < 500; i++) {
+    let open = p + (Math.random() - 0.5) * current.pip * 20;
+    let close = open + (Math.random() - 0.5) * current.pip * 20;
+    let high = Math.max(open, close) + Math.random() * current.pip * 10;
+    let low = Math.min(open, close) - Math.random() * current.pip * 10;
+    kData.push([open, close, low, high]);
+    p = close;
+    time += 60000;
+  }
+
+  const option = {
+    backgroundColor: '#0b0e17',
+    animation: false,
+    grid: {left: '5%', right: '5%', top: '10%', bottom: '10%'},
+    xAxis: {type: 'category', boundaryGap: false, axisLine: {lineStyle: {color: '#333'}}, axisLabel: {color: '#d1d4dc'}},
+    yAxis: {scale: true, splitLine: {lineStyle: {color: '#333'}}, axisLine: {lineStyle: {color: '#333'}}, axisLabel: {color: '#d1d4dc'}},
+    dataZoom: [{type: 'inside'}, {type: 'slider', height: 20, bottom: 10}],
+    tooltip: {trigger: 'axis', backgroundColor: 'rgba(0,0,0,0.8)', textStyle: {color: '#fff'}},
+    series: [{
+      type: 'candlestick',
+      name: current.sym,
+      data: kData,
+      itemStyle: {
+        color: '#00ff9d', color0: '#ff4444',
+        borderColor: '#00ff9d', borderColor0: '#ff4444'
+      }
+    }, {
+      name: 'MA5',
+      type: 'line',
+      data: kData.map((d, i) => i >= 4 ? kData.slice(i - 4, i + 1).reduce((sum, val) => sum + val[1], 0) / 5 : null),
+      lineStyle: {color: '#ffaa00'},
+      smooth: true
+    }]
+  };
+  myChart.setOption(option);
+
+  // 实时更新
+  setInterval(() => {
+    const last = kData[kData.length - 1];
+    const open = last[1];
+    const close = open + (Math.random() - 0.5) * current.pip * 10;
+    const high = Math.max(open, close) + Math.random() * current.pip * 5;
+    const low = Math.min(open, close) - Math.random() * current.pip * 5;
+    kData[kData.length - 1] = [open, close, low, high];
+    myChart.setOption({series: [{data: kData}]});
+    document.getElementById('price').textContent = close.toFixed(2);
+    updatePnl();
+  }, 2000);
+}
+
+function changeLots(v) {
+  let val = parseFloat(document.getElementById('lots').value) + v;
+  if (val < 0.01) val = 0.01;
+  document.getElementById('lots').value = val.toFixed(2);
+  updateOrderInfo();
+}
+
+document.getElementById('buy-tab').onclick = () => { direction = 'buy'; document.getElementById('buy-tab').classList.add('active'); document.getElementById('sell-tab').classList.remove('active'); updateOrderInfo(); };
+document.getElementById('sell-tab').onclick = () => { direction = 'sell'; document.getElementById('sell-tab').classList.add('active'); document.getElementById('buy-tab').classList.remove('active'); updateOrderInfo(); };
+
+function updateOrderInfo() {
+  const lots = parseFloat(document.getElementById('lots').value);
+  document.getElementById('order-btn').textContent = `${direction === 'buy' ? '买入' : '卖出'} ${lots.toFixed(2)}手 ${current.sym}`;
+  document.getElementById('order-btn').className = `order-btn ${direction === 'buy' ? 'buy-order' : 'sell-order'}`;
+}
+
+document.getElementById('order-btn').onclick = () => {
+  const lots = parseFloat(document.getElementById('lots').value);
+  const close = parseFloat(document.getElementById('price').textContent);
+  positions.push({sym: current.sym, dir: direction === 'buy' ? '多' : '空', lots, entry: close});
+  alert(`已${direction === 'buy' ? '买入' : '卖出'} ${lots}手 @ ${close.toFixed(2)}`);
+  updatePositions();
+};
+
+function updatePositions() {
+  const box = document.getElementById('positions');
+  box.innerHTML = '<h3 style="color:#aaa;margin:20px 0 10px">持仓列表</h3>';
+  let total = 0;
+  positions.forEach(p => {
+    const now = parseFloat(document.getElementById('price').textContent);
+    const pnl = p.dir === '多' ? (now - p.entry) * p.lots * current.contract : (p.entry - now) * p.lots * current.contract;
+    total += pnl;
+    const el = document.createElement('div');
+    el.className = `pos-item ${p.dir === '空' ? 'sell' : ''}`;
+    el.innerHTML = `
+      <div style="font-weight:bold">${p.sym} ${p.dir} ${p.lots}手 @${p.entry.toFixed(2)}</div>
+      <div>当前 ${now.toFixed(2)}</div>
+      <div style="font-size:20px;color:${pnl >= 0 ? '#00ff9d' : '#ff4444'}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}$</div>
+      <button class="close-pos" onclick="positions = positions.filter(x => x !== p); updatePositions();">平仓</button>
+    `;
+    box.appendChild(el);
+  });
+  document.getElementById('total-pnl').textContent = total.toFixed(2);
+  document.getElementById('total-pnl').style.color = total >= 0 ? '#00ff9d' : '#ff4444';
+  document.getElementById('balance').textContent = (100000 + total).toFixed(2);
+}
+
+updateOrderInfo();
+initChart();
+window.onresize = () => myChart && myChart.resize();
+</script>
+</body>
+</html>
