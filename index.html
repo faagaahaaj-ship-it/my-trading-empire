@@ -2,17 +2,16 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>外汇合约帝国</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui}
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif}
 body,html{height:100%;background:#0b0e17;color:#fff;overflow:hidden}
-.header{background:#1a1f2e;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:19px}
-.logo{color:#00ff9d;font-weight:bold}
+.header{background:#1a1f2e;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;font-size:19px;box-shadow:0 4px 20px rgba(0,0,0,0.7)}
+.logo{color:#00ff9d;font-weight:bold;letter-spacing:1px}
 .account .green{color:#00ff9d;font-weight:bold}
 .main{height:calc(100% - 56px);display:flex}
 .left{width:300px;background:#161b22;overflow-y:auto;border-right:1px solid #30363d}
-.symbol{padding:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border-bottom:1px solid #21262d}
+.symbol{padding:16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:.2s;border-bottom:1px solid #21262d}
 .symbol:hover{background:#1f2532}
 .symbol.active{background:#00ff9d;color:#000;font-weight:bold}
 .chart-container{flex:1}
@@ -21,7 +20,10 @@ body,html{height:100%;background:#0b0e17;color:#fff;overflow:hidden}
 .tabs button{flex:1;padding:16px;font-size:18px;border:none;cursor:pointer;font-weight:bold}
 .buy-btn{background:#00ff9d;color:#000}
 .sell-btn{background:#ff4444;color:#fff}
-.buy-btn.active{transform:scale(1.05)}
+.buy-btn.active,.sell-btn.active{transform:scale(1.05)}
+.lots-control{display:flex;gap:20px;align-items:center;justify-content:center;margin:25px 0}
+.lots-control button{width:56px;height:56px;font-size:30px;background:#30363d;border-radius:12px}
+.lots-control input{width:150px;padding:14px;font-size:24px;text-align:center;background:#21262d;border-radius:12px}
 .order-btn{width:100%;padding:22px;font-size:26px;border:none;border-radius:12px;cursor:pointer;font-weight:bold;margin:25px 0}
 .buy-order{background:#00ff9d;color:#000;box-shadow:0 10px 30px rgba(0,255,157,0.5)}
 .sell-order{background:#ff4444;color:#fff;box-shadow:0 10px 30px rgba(255,68,68,0.5)}
@@ -29,7 +31,7 @@ body,html{height:100%;background:#0b0e17;color:#fff;overflow:hidden}
 .pos-item{background:#1e2433;padding:18px;margin:10px 0;border-radius:12px;border-left:5px solid #00ff9d;position:relative}
 .pos-item.sell{border-left-color:#ff4444}
 .close-pos{background:#ff1744;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;position:absolute;right:15px;top:15px}
-#tv{height:100%;width:100%}
+#tv{width:100%;height:100%}
 </style>
 </head>
 <body>
@@ -48,16 +50,17 @@ body,html{height:100%;background:#0b0e17;color:#fff;overflow:hidden}
       <button class="buy-btn active" id="buy-tab">买涨</button>
       <button class="sell-btn" id="sell-tab">买跌</button>
     </div>
-    <div style="display:flex;gap:20px;align-items:center;justify-content:center;margin:25px 0">
-      <button onclick="changeLots(-0.01)" style="width:56px;height:56px;font-size:30px;background:#30363d;border-radius:12px">−</button>
-      <input type="number" id="lots" value="0.10" step="0.01" min="0.01" style="width:150px;padding:14px;font-size:24px;text-align:center;background:#21262d;border-radius:12px">
-      <button onclick="changeLots(0.01)" style="width:56px;height:56px;font-size:30px;background:#30363d;border-radius:12px">+</button>
+    <div class="lots-control">
+      <button onclick="changeLots(-0.01)">−</button>
+      <input type="number" id="lots" value="0.10" step="0.01" min="0.01">
+      <button onclick="changeLots(0.01)">+</button>
     </div>
     <button class="order-btn buy-order" id="order-btn">买入 0.10手 XAUUSD</button>
     <div id="positions"><h3 style="color:#aaa;margin:20px 0 10px">持仓列表</h3></div>
   </div>
 </div>
 
+<!-- 2025 年 GitHub Pages 最稳的 TradingView 嵌入方式 -->
 <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" charset="utf-8"></script>
 <script type="text/javascript">
 new TradingView.widget({
@@ -103,26 +106,26 @@ function changeSymbol(tvSym, mySym, name){
   event.target.closest('.symbol').classList.add('active');
   document.getElementById('symbol-name').textContent = name + ' ' + mySym;
 
-  // 重新创建 widget
+  // 重新创建 widget（关键）
   const tv = document.getElementById('tv');
   tv.innerHTML = '';
   new TradingView.widget({
-    autosize: true,
-    symbol: tvSym,
-    interval: "1",
-    timezone: "Asia/Shanghai",
-    theme: "dark",
-    style: "1",
-    locale: "zh",
-    toolbar_bg: "#f1f3f6",
-    enable_publishing: false,
-    hide_side_toolbar: false,
-    allow_symbol_change: false,
-    container_id: "tv"
+    "autosize": true,
+    "symbol": tvSym,
+    "interval": "1",
+    "timezone": "Asia/Shanghai",
+    "theme": "dark",
+    "style": "1",
+    "locale": "zh",
+    "toolbar_bg": "#f1f3f6",
+    "enable_publishing": false,
+    "hide_side_toolbar": false,
+    "allow_symbol_change": false,
+    "container_id": "tv"
   });
 }
 
-// 实时价格
+// 实时价格（Yahoo Finance 黄金）
 setInterval(()=>{
   fetch('https://api.allorigins.win/get?url='+encodeURIComponent('https://finance.yahoo.com/quote/GC=F')).then(r=>r.json()).then(d=>{
     try{
@@ -165,7 +168,7 @@ function updatePnl(){
   document.getElementById('total-pnl').style.color = total >= 0 ? '#00ff9d' : '#ff4444';
 }
 
-// 启动黄金
+// 启动
 changeSymbol("TVC:GOLD", "XAUUSD", "黄金");
 </script>
 </body>
